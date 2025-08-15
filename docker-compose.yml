@@ -1,0 +1,20 @@
+version: '3'
+
+volumes:
+  temp:
+  pg_data:
+
+services:
+  converter:
+    build: .
+    env_file: .env
+    volumes:
+      - temp:/app/temp  # Mounting temp directory for file storage
+
+  db:
+    image: postgres:13
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+
