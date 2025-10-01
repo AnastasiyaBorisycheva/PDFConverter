@@ -47,16 +47,16 @@ jobs:
             cd /home/${{ secrets.SSH_USER }}/pdf_converter/
             
             # Pull latest images
-            docker compose pull
+            docker compose -f docker-compose.production.yml pull
             
             # Redeploy containers
-            docker compose up -d --force-recreate
+            docker compose -f docker-compose.production.yml up -d --force-recreate
             
             # Cleanup old images
             docker image prune -f
             
             # Check status
-            docker compose ps
+            docker compose -f docker-compose.production.yml ps
             
             echo "✅ Deployment completed successfully!"
 
