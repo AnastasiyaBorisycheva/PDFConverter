@@ -28,7 +28,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: anastasiiaborisycheva/study_bot:latest 
+          tags: anastasiiaborisycheva/pdfconverter:latest 
 
   deploy:
     runs-on: ubuntu-latest
