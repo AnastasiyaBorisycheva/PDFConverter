@@ -1,6 +1,5 @@
 from aiogram import Router
 from aiogram.types import Message
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = Router()
 

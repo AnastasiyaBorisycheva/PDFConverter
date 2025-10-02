@@ -7,12 +7,12 @@ from aiogram.types import FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logger import setup_logger
-from crud.user import crud_user
 from crud.converting import crud_convert
+from crud.user import crud_user
 from utils.image_converter import image_converter_to_pdf
 from utils.temp_buffer import create_temp_folder, delete_files_in_folder
 
-logger = setup_logger(name='pdf_working')
+logger = setup_logger(name=__name__)
 
 router = Router()
 
@@ -36,6 +36,7 @@ async def media_handler(message: Message, bot: Bot) -> None:
         await bot.download(document.file_id, destination=filepath)
     except Exception as e:
         logger.error(f"Exception came: {e}")
+        print(e)
     finally:
         logger.info(f"File {html.code(document_name)} saved for conversion.")
 

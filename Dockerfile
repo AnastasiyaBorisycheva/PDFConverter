@@ -18,6 +18,7 @@ RUN pip install --upgrade pip
 RUN pip install -r requirements.txt --no-cache-dir
 
 RUN mkdir temp
+RUN mkdir logs
 
 # Скопировать всё необходимое содержимое 
 # той директории локального компьютера, где сохранён Dockerfile,

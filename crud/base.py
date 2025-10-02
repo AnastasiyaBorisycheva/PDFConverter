@@ -1,6 +1,7 @@
-from typing import Type, TypeVar, Generic, Optional, List, Dict, Any
+from typing import Any, Dict
+
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
 
 
 class CRUDBase:

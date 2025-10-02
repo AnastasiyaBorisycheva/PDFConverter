@@ -11,20 +11,32 @@ from handlers.pdf_working import router as pdf_router
 from handlers.repeater import router as repeater_router
 from handlers.start import router as start_router
 from middlewares.db import DbSessionMiddleware
+from utils.commands import set_common_commands
 
-# Set up logging
-logger = setup_logger(name='main')
+# Инициализация логгера
+logger = setup_logger(__name__)
+
+
+async def on_startup(bot: Bot):
+    await set_common_commands(bot)
+    logger.info("Команды настроены")
 
 
 async def main() -> None:
     dp = Dispatcher()
-    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(
+        token=TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     dp.update.outer_middleware(DbSessionMiddleware())
+
+    dp.startup.register(on_startup)
 
     # Подключаем все роутеры
     dp.include_router(start_router)
     dp.include_router(pdf_router)
     dp.include_router(repeater_router)
+    logger.info("Роутеры загружены")
 
     await create_tables()
     await dp.start_polling(bot)
