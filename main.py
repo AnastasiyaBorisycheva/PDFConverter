@@ -29,9 +29,9 @@ async def main() -> None:
 
     # Настройка сессии с таймаутами
     timeout = ClientTimeout(
-        total=120,        # Общий таймаут на весь запрос
-        connect=30,       # Таймаут на соединение
-        sock_read=60,     # Таймаут на чтение данных
+        total=60,        # Общий таймаут на весь запрос
+        connect=15,       # Таймаут на соединение
+        sock_read=30,     # Таймаут на чтение данных
         sock_connect=30   # Таймаут на сокет-соединение
     )
 
@@ -39,8 +39,8 @@ async def main() -> None:
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         timeout=timeout.total,  # Важно! Передаём только число, а не объект
-        connect_timeout=30,
-        pool_timeout=30
+        connect_timeout=15,
+        pool_timeout=15
     )
 
     dp.update.outer_middleware(DbSessionMiddleware())
