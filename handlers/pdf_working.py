@@ -174,7 +174,11 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
         result_filename = image_converter_to_pdf(
             path_in,
             path_out,
-            message.message_id)
+            message.message_id,
+            quality=50,        # 75% - хороший баланс
+            max_width=1200,    # Ограничиваем ширину
+            max_height=1800    # Ограничиваем высоту
+        )
 
         logger.info(f"✅ Конвертация завершена. Результирующий файл: {result_filename}")
 
