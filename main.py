@@ -35,20 +35,8 @@ async def main() -> None:
         sock_connect=30   # Таймаут на сокет-соединение
     )
 
-    # Настройка пула соединений
-    connector = TCPConnector(
-        limit=25,              # Максимум одновременных соединений
-        limit_per_host=5,      # Максимум на хост
-        ttl_dns_cache=300,    # Кэш DNS на 5 минут
-        force_close=False,    # Не закрывать соединения сразу
-        enable_cleanup_closed=True
-    )
-
-    # Создаём сессию с нашими настройками
-    session = AiohttpSession(
-        timeout=timeout,
-        connector=connector
-    )
+    # Создаём сессию с таймаутами 
+    session = AiohttpSession(timeout=timeout)
 
     bot = Bot(
         token=TOKEN,
