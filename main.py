@@ -2,7 +2,9 @@ import asyncio
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
+from aiohttp import ClientTimeout, TCPConnector
 
 from core.core import TOKEN
 from core.logger import setup_logger
@@ -24,10 +26,36 @@ async def on_startup(bot: Bot):
 
 async def main() -> None:
     dp = Dispatcher()
+
+    # Настройка сессии с таймаутами
+    timeout = ClientTimeout(
+        total=120,        # Общий таймаут на весь запрос
+        connect=30,       # Таймаут на соединение
+        sock_read=60,     # Таймаут на чтение данных
+        sock_connect=30   # Таймаут на сокет-соединение
+    )
+
+    # Настройка пула соединений
+    connector = TCPConnector(
+        limit=25,              # Максимум одновременных соединений
+        limit_per_host=5,      # Максимум на хост
+        ttl_dns_cache=300,    # Кэш DNS на 5 минут
+        force_close=False,    # Не закрывать соединения сразу
+        enable_cleanup_closed=True
+    )
+
+    # Создаём сессию с нашими настройками
+    session = AiohttpSession(
+        timeout=timeout,
+        connector=connector
+    )
+
     bot = Bot(
         token=TOKEN,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
+
     dp.update.outer_middleware(DbSessionMiddleware())
 
     dp.startup.register(on_startup)
@@ -39,7 +67,14 @@ async def main() -> None:
     logger.info("Роутеры загружены")
 
     await create_tables()
-    await dp.start_polling(bot)
+
+    try:
+        logger.info("Стартуем сессию")
+        await dp.start_polling(bot)
+    finally:
+        # Важно закрыть сессию
+        await session.close()
+        logger.info("Сессия закрыта")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,17 @@ services:
   converter:
     build: .
     env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AIOHTTP_TIMEOUT=120  # Важно!
+    restart: unless-stopped
+    # Ограничь память
+    mem_limit: 512m
+    mem_reservation: 256m
+    # DNS настройки
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   db:
     image: postgres:13
