@@ -35,13 +35,12 @@ async def main() -> None:
         sock_connect=30   # Таймаут на сокет-соединение
     )
 
-    # Создаём сессию с таймаутами 
-    session = AiohttpSession(timeout=timeout)
-
     bot = Bot(
         token=TOKEN,
-        session=session,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        timeout=timeout.total,  # Важно! Передаём только число, а не объект
+        connect_timeout=30,
+        pool_timeout=30
     )
 
     dp.update.outer_middleware(DbSessionMiddleware())
@@ -57,12 +56,11 @@ async def main() -> None:
     await create_tables()
 
     try:
-        logger.info("Стартуем сессию")
         await dp.start_polling(bot)
-    finally:
-        # Важно закрыть сессию
-        await session.close()
-        logger.info("Сессия закрыта")
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
