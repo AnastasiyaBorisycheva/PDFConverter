@@ -15,6 +15,10 @@ commands = [
         command="convert",
         description="Конвертировать все присланные файлы в pdf"
     ),
+    BotCommand(
+        command="clear",
+        description="Удалить все временные файлы"
+    )
 ]
 
 

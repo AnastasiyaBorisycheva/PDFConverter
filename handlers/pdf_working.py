@@ -30,6 +30,8 @@ async def media_handler(message: Message, bot: Bot) -> None:
     path_in, path_out = create_temp_folder(user_id)
     logger.debug(f"Созданы временные папки: {path_in}, {path_out}")
 
+    msg = await message.answer('Увидел файлы, сохраняю...')
+
     try:
         if message.document is not None:
             document = message.document
@@ -46,6 +48,10 @@ async def media_handler(message: Message, bot: Bot) -> None:
         logger.debug(f"Скачивание файла в {filepath}")
         await bot.download(document.file_id, destination=filepath)
         logger.info(f"✅ Файл сохранён: {html.code(document_name)}")
+
+        await msg.edit_text('Файл сохранён')
+        await asyncio.sleep(1)
+        await msg.delete()
 
     except Exception as e:
         logger.error(f"❌ Ошибка при сохранении файла: {e}", exc_info=True)
@@ -71,45 +77,46 @@ async def send_file_with_retry(
             file_to_send = FSInputFile(file_path)
             await message.answer_document(
                 document=file_to_send,
-                caption=caption
+                caption=caption,
+                reply_markup=None
             )
 
             file_size = os.path.getsize(file_path) / 1024  # в KB
-            logger.info(f"✅ Файл успешно отправлен! Размер: {file_size:.2f} KB, попытка: {attempt}")
+            logger.info(f"Файл успешно отправлен! Размер: {file_size:.2f} KB, попытка: {attempt}")
             return True
 
         except TelegramRetryAfter as e:
             wait_time = e.retry_after
-            logger.warning(f"⏳ Flood control от Telegram. Ждём {wait_time} сек (попытка {attempt}/{max_retries})")
+            logger.warning(f"Flood control от Telegram. Ждём {wait_time} сек (попытка {attempt}/{max_retries})")
             await asyncio.sleep(wait_time)
 
         except TelegramNetworkError as e:
-            logger.warning(f"🌐 Сетевая ошибка: {e}. Попытка {attempt}/{max_retries}")
+            logger.warning(f"Сетевая ошибка: {e}. Попытка {attempt}/{max_retries}")
             if attempt < max_retries:
                 wait_time = 2 ** attempt  # 2, 4, 8 секунд
                 logger.debug(f"Повтор через {wait_time} сек")
                 await asyncio.sleep(wait_time)
             else:
-                logger.error(f"❌ Исчерпаны все попытки отправки из-за сетевой ошибки")
+                logger.error(f"Исчерпаны все попытки отправки из-за сетевой ошибки")
 
         except TelegramBadRequest as e:
-            logger.error(f"❌ Bad request ошибка: {e}", exc_info=True)
+            logger.error(f"Bad request ошибка: {e}", exc_info=True)
             # Такую ошибку повторять бесполезно
             break
 
         except TelegramAPIError as e:
-            logger.error(f"❌ Ошибка Telegram API: {e}", exc_info=True)
+            logger.error(f"Ошибка Telegram API: {e}", exc_info=True)
             if attempt < max_retries:
                 await asyncio.sleep(3)
             else:
-                logger.error(f"❌ Исчерпаны все попытки отправки")
+                logger.error(f"Исчерпаны все попытки отправки")
 
         except Exception as e:
-            logger.error(f"❌ Неожиданная ошибка при отправке: {e}", exc_info=True)
+            logger.error(f"Неожиданная ошибка при отправке: {e}", exc_info=True)
             if attempt < max_retries:
                 await asyncio.sleep(3)
             else:
-                logger.error(f"❌ Исчерпаны все попытки отправки")
+                logger.error(f"Исчерпаны все попытки отправки")
 
     return False
 
@@ -121,6 +128,8 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
     user_id = message.from_user.id
     logger.info(f" === НАЧАЛО КОНВЕРТАЦИИ для пользователя {user_id} ===")
     start_time = asyncio.get_event_loop().time()
+
+    msg = await message.answer('Начинаю конвертацию ваших файлов... ⏳')
 
     # Даём время на загрузку последних файлов
     logger.debug("Ожидание 5 секунды перед началом конвертации...")
@@ -160,27 +169,30 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
     files_in_folder = os.listdir(path_in)
     file_count = len(files_in_folder)
     logger.info(f"Найдено файлов для конвертации: {file_count}")
+    await message.answer(f'Найдено файлов для конвертации: {file_count} 📁')
 
     if file_count == 0:
         logger.warning(f"Нет файлов для конвертации у пользователя {user_id}")
-        await message.answer('❌ Нет загруженных файлов для конвертации')
+        await msg.edit_text('❌ Нет загруженных файлов для конвертации')
         return
 
     # Конвертируем файлы
     try:
         data["number_of_files"] = file_count
         logger.info(f"Начало конвертации {file_count} файлов...")
+        msg = await message.answer(f'Начало конвертации {file_count} файлов... ⏳')
 
         result_filename = image_converter_to_pdf(
             path_in,
             path_out,
             message.message_id,
-            quality=50,        # 75% - хороший баланс
+            quality=75,        # 75% - хороший баланс
             max_width=1200,    # Ограничиваем ширину
             max_height=1800    # Ограничиваем высоту
         )
 
         logger.info(f"✅ Конвертация завершена. Результирующий файл: {result_filename}")
+        await msg.edit_text(f'✅ Конвертация завершена. Результат готов к отправке! 📤')
 
         # Проверяем размер результата
         if os.path.exists(result_filename):
@@ -189,10 +201,10 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
             logger.info(f"Размер PDF: {file_size_kb:.2f} KB ({file_size_mb:.2f} MB)")
             data["file_size"] = os.path.getsize(result_filename)
         else:
-            logger.error(f"❌ Файл {result_filename} не создан!")
+            logger.error(f"Файл {result_filename} не создан!")
 
     except Exception as e:
-        logger.error(f"❌ Ошибка при конвертации: {e}", exc_info=True)
+        logger.error(f"Ошибка при конвертации: {e}", exc_info=True)
         await message.answer('❌ Ошибка при конвертации файлов')
         return
 
@@ -251,7 +263,8 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
                 "*Ваши файлы сохранены!*\n\n"
                 "Просто отправьте команду /convert ещё раз, "
                 "когда соединение восстановится.\n"
-                "Повторно загружать изображения **не нужно**."
+                "Повторно загружать изображения **не нужно**.",
+                parse_mode='html'
             )
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке: {e}")

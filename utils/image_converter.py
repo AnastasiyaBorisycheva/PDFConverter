@@ -208,7 +208,7 @@ def image_converter_to_pdf(
     except img2pdf.AlphaChannelError as e:
         logger.error(f"❌ Ошибка альфа-канала: {e}")
         return None
-    except img2pdf.PDFTooLargeError as e:
+    except img2pdf.PdfTooLargeError as e:
         logger.error(f"❌ PDF слишком большой: {e}")
         return None
     except Exception as e:

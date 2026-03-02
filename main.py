@@ -12,6 +12,7 @@ from database.init_db import create_tables
 from handlers.pdf_working import router as pdf_router
 from handlers.repeater import router as repeater_router
 from handlers.start import router as start_router
+from handlers.clear import router as clear_router
 from middlewares.db import DbSessionMiddleware
 from utils.commands import set_common_commands
 
@@ -31,8 +32,8 @@ async def main() -> None:
     timeout = ClientTimeout(
         total=60,        # Общий таймаут на весь запрос
         connect=15,       # Таймаут на соединение
-        sock_read=30,     # Таймаут на чтение данных
-        sock_connect=30   # Таймаут на сокет-соединение
+        sock_read=15,     # Таймаут на чтение данных
+        sock_connect=15   # Таймаут на сокет-соединение
     )
 
     bot = Bot(
@@ -50,6 +51,7 @@ async def main() -> None:
     # Подключаем все роутеры
     dp.include_router(start_router)
     dp.include_router(pdf_router)
+    dp.include_router(clear_router)
     dp.include_router(repeater_router)
     logger.info("Роутеры загружены")
 
