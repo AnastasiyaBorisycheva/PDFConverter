@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from time import sleep
 
@@ -147,7 +148,8 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
                 "first_name": message.from_user.first_name,
                 "last_name": message.from_user.last_name,
                 "username": message.from_user.username,
-                "is_premium": message.from_user.is_premium
+                "is_premium": message.from_user.is_premium,
+                "registration_date": datetime.now(timezone.utc)
             }
         await crud_user.create_or_update(
             user_id,
@@ -161,7 +163,8 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
     logger.info(f"Временные папки:\n  Вход: {path_in}\n  Выход: {path_out}")
 
     data = {
-        "telegram_id": user_id,
+        "telegram_id": message.from_user.id,
+        "user_id": user.id,  # Передаем PK пользователя (int)
         "is_premium": message.from_user.is_premium,
     }
 
@@ -229,6 +232,7 @@ async def pdf_converter_handler(message: Message, session: AsyncSession) -> None
     
     # Записываем статистику в БД
     logger.debug(f"Сохранение данных конвертации в БД")
+    data["converted_at"] = datetime.now(timezone.utc)
     await crud_convert.create(
         session=session,
         data=data

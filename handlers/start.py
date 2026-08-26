@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from aiogram import Router, html
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -22,14 +24,16 @@ async def command_start_handler(
     user = await crud_user.get_by_telegram_id(
         telegram_id=message.from_user.id,
         session=session)
-
+    
     if not user:
         user_dict = {
                 "first_name": message.from_user.first_name,
                 "last_name": message.from_user.last_name,
                 "username": message.from_user.username,
-                "is_premium": message.from_user.is_premium
+                "is_premium": message.from_user.is_premium,
+                "registration_date": datetime.now(timezone.utc)
             }
+
         await crud_user.create_or_update(
             message.from_user.id,
             session,
