@@ -1,12 +1,16 @@
 /.dockerignore
 /.env
-/temp
 /venv
 /.venv
-/logs
 __pycache__/
 __pycache__
 /__pycache__
 
+.venv
+.git
+.gitignore
+*.pyc
+temp/
+logs/
 
 pdfconverter.db
