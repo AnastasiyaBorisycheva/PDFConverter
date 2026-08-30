@@ -31,7 +31,10 @@ class User(Base):
         nullable=False
     )
 
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False)
 
 
     # Связь с конвертациями: у одного пользователя может быть много конвертаций

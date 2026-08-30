@@ -23,5 +23,11 @@ RUN mkdir -p temp logs
 # Копируем остальной код проекта
 COPY . .
 
+# Делаем entrypoint.sh исполняемым внутри образа
+RUN chmod +x /app/entrypoint.sh
+
+# Настраиваем entrypoint и команду по умолчанию
+ENTRYPOINT ["/app/entrypoint.sh"]
+
 # Запуск через uv run или python
 CMD ["uv", "run", "python", "main.py"]

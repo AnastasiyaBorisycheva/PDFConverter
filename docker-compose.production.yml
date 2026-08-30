@@ -1,26 +1,19 @@
-version: '3'
-
 volumes:
   pg_data:
 
 services:
+
+  db:
+    image: postgres:13-alpine
+    env_file: .env
+    restart: always
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
   converter:
     image: anastasiiaborisycheva/pdfconverter
     env_file: .env
-    environment:
-      - PYTHONUNBUFFERED=1
-      - AIOHTTP_TIMEOUT=120  # Важно!
     restart: unless-stopped
-    # Ограничь память
-    mem_limit: 512m
-    mem_reservation: 256m
-    # DNS настройки
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    depends_on:
+      db:
 
-  db:
-    image: postgres:13
-    env_file: .env
-    volumes:
-      - pg_data:/var/lib/postgresql/data
