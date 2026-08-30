@@ -1,48 +1,52 @@
 import logging
-import os
 import sys
-from datetime import datetime
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 
-def setup_logger(name=None):
-    """Настройка и возврат логгера"""
+def setup_logger(name: str | None = None) -> logging.Logger:
+    """Настройка и возврат сконфигурированного логгера."""
 
-    # Создаем папку для логов, если её нет
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    # Создаем папку для логов через pathlib
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     # Имя логгера
-    if name is None:
-        name = __name__
-
-    logger = logging.getLogger(name)
+    logger_name = name or __name__
+    logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
 
-    # Проверяем, нет ли уже обработчиков у логгера
+    # Предотвращаем дублирование обработчиков при повторных вызовах
     if logger.handlers:
         return logger
 
-    # Форматтер
+    # Отключаем передачу логов родительским логгерам (чтобы не дублировать)
+    logger.propagate = False
+
+    # Единый форматтер для записей
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-        datefmt='%d.%m.%Y %H:%M:%S'
+        fmt="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Консольный обработчик
+    # 1. Консольный обработчик (уровень INFO+)
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Обработчик для файла с ротацией
-    log_file = os.path.join(log_dir, f'app_{datetime.now().strftime("%Y%m%d")}.log')
+    # 2. Файловый обработчик с ежедневной ротацией (уровень DEBUG+)
+    # Фиксированное имя файла: при ротации появится app.log.2026-08-30 и т.д.
+    log_file = log_dir / "app.log"
     file_handler = TimedRotatingFileHandler(
         filename=log_file,
-        when='D',
+        when="midnight",
+        interval=1,
         backupCount=7,
-        encoding='utf-8'
+        encoding="utf-8",
     )
+    file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
     return logger

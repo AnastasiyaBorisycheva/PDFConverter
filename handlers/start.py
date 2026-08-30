@@ -20,28 +20,13 @@ async def command_start_handler(
     This handler receives messages with `/start` command
     """
 
-    # Проверяем, есть ли пользователь в БД
-    user = await crud_user.get_by_telegram_id(
+    # Автоматически создаст нового юзера или обновит username/first_name существующего
+    user = await crud_user.create_or_update(
         telegram_id=message.from_user.id,
-        session=session)
-    
-    if not user:
-        user_dict = {
-                "first_name": message.from_user.first_name,
-                "last_name": message.from_user.last_name,
-                "username": message.from_user.username,
-                "is_premium": message.from_user.is_premium,
-                "registration_date": datetime.now(timezone.utc)
-            }
-
-        await crud_user.create_or_update(
-            message.from_user.id,
-            session,
-            **user_dict,)
-
-    create_temp_folder(message.from_user.id)
-
-    await message.answer(
-        f"Hello, {html.bold(message.from_user.full_name)}!",
-        reply_markup=main_keyboard()
+        session=session,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name,
+        is_premium=message.from_user.is_premium
     )
+    await message.answer(f"Привет, {user.first_name}!")
