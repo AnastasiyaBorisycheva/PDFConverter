@@ -1,77 +1,71 @@
-import img2pdf
-import os
-import logging
-from pathlib import Path
-from PIL import Image
+import asyncio
 import io
+import logging
+import os
+from pathlib import Path
 from typing import List, Optional
 
-# Настройка логгера для этого модуля
+import img2pdf
+from PIL import Image, ImageOps
+
 logger = logging.getLogger(__name__)
 
 
-def compress_image(image_path: str, quality: int = 85, max_size: tuple = None) -> bytes:
+def compress_image(image_path: str | Path, quality: int = 100, max_size: tuple = None) -> bytes:
     """
-    Сжимает изображение и возвращает байты для img2pdf
-    
-    Args:
-        image_path: путь к изображению
-        quality: качество JPEG (1-100, 85 - хороший баланс)
-        max_size: максимальные размеры (width, height)
-    
-    Returns:
-        bytes: сжатое изображение в формате JPEG
+    Сжимает изображение и возвращает байты для img2pdf.
+    Учитывает EXIF-поворот фото со смартфонов.
     """
     try:
         with Image.open(image_path) as img:
-            # Логируем исходные данные
-            logger.debug(f"📸 Оригинал: {image_path}, "
-                        f"размер: {img.size}, "
-                        f"формат: {img.format}, "
-                        f"режим: {img.mode}")
-            
-            # Конвертируем в RGB если нужно
-            if img.mode in ('RGBA', 'LA', 'P'):
-                img = img.convert('RGB')
-            
-            # Изменяем размер если нужно
+            # Корректируем ориентацию по EXIF (чтобы фото не получались перевернутыми)
+            img = ImageOps.exif_transpose(img)
+
+            logger.debug(
+                f"Оригинал: {image_path}, размер: {img.size}, "
+                f"формат: {img.format}, режим: {img.mode}"
+            )
+
+            # Конвертируем в RGB если нужно (для избавлением от альфа-канала)
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGB")
+
+            # Изменяем размер пропорционально
             if max_size:
                 img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                logger.debug(f"📏 Изменён размер до: {img.size}")
-            
+                logger.debug(f"Изменён размер до: {img.size}")
+
             # Сохраняем в буфер с сжатием
             output = io.BytesIO()
-            img.save(output, 
-                    format='JPEG', 
-                    quality=quality,
-                    optimize=True,
-                    progressive=True)
-            
-            compressed_size = len(output.getvalue()) / 1024
-            logger.debug(f"💾 Сжато: {compressed_size:.1f}KB, качество: {quality}")
-            
-            return output.getvalue()
-            
+            img.save(
+                output,
+                format="JPEG",
+                quality=quality,
+                optimize=True,
+                progressive=True,
+            )
+
+            compressed_bytes = output.getvalue()
+            compressed_size = len(compressed_bytes) / 1024
+            logger.debug(f"Сжато: {compressed_size:.1f}KB, качество: {quality}")
+
+            return compressed_bytes
+
     except Exception as e:
         logger.error(f"❌ Ошибка сжатия {image_path}: {e}")
-        # В случае ошибки читаем оригинал
-        with open(image_path, 'rb') as f:
+        # В случае ошибки читаем оригинальный файл
+        with open(image_path, "rb") as f:
             return f.read()
 
 
-def get_safe_filename_key(filename: str) -> int:
-    """
-    Безопасное получение ключа для сортировки из имени файла
-    Формат: {message_id}_{original_filename}
-    """
+def get_safe_filename_key(filename: str) -> float:
+    """Безопасное получение ключа для сортировки из имени файла."""
     try:
-        # Берём первую часть до подчёркивания
-        key_part = filename.split('_')[0]
-        return int(key_part)
+        key_part = filename.split("_")[0]
+        return float(key_part)
     except (ValueError, IndexError):
-        # Если не удалось - кладём в конец
-        logger.warning(f"⚠️ Нестандартное имя файла: {filename}")
-        return float('inf')
+        logger.warning(f"Нестандартное имя файла: {filename}")
+        return float("inf")
 
 
 def image_converter_to_pdf(
@@ -229,3 +223,99 @@ def get_pdf_preview_info(pdf_path: str) -> dict:
         info["size_kb"] = os.path.getsize(pdf_path) / 1024
     
     return info
+
+
+def _sync_image_converter_to_pdf(
+    input_directory: str | Path = "IN",
+    output_directory: str | Path = "OUT",
+    message_id: int = 0,
+    quality: int = 100,
+    max_width: Optional[int] = 1200,
+    max_height: Optional[int] = 1800,
+    allowed_extensions: tuple = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"),
+) -> Optional[str]:
+    """Синхронная функция подготовки и сборки PDF."""
+    input_path = Path(input_directory)
+    output_path_dir = Path(output_directory)
+
+    if not input_path.exists():
+        logger.error(f"❌ Папка не существует: {input_path}")
+        return None
+
+    # Собираем все поддерживаемые изображения
+    image_files = []
+    for entry in input_path.iterdir():
+        if entry.is_file() and entry.suffix.lower() in allowed_extensions:
+            file_size_kb = entry.stat().st_size / 1024
+            if file_size_kb > 50 * 1024:  # > 50MB
+                logger.warning(f"Слишком большой файл ({file_size_kb:.1f}KB): {entry.name}")
+                continue
+            image_files.append(entry)
+
+    if not image_files:
+        logger.error("Нет подходящих изображений для конвертации")
+        return None
+
+    # Сортируем файлы по ключу
+    image_files.sort(key=lambda x: get_safe_filename_key(x.name))
+
+    # Сжимаем изображения
+    compressed_images = []
+    max_size = (max_width, max_height) if max_width and max_height else None
+
+    for i, img_path in enumerate(image_files, 1):
+        logger.info(f"Обработка {i}/{len(image_files)}: {img_path.name}")
+        img_data = compress_image(img_path, quality=quality, max_size=max_size)
+        compressed_images.append(img_data)
+
+    output_file_path = output_path_dir / f"result_{message_id}.pdf"
+
+    try:
+        logger.info(f"Создание PDF: {output_file_path}")
+        
+        pdf_bytes = img2pdf.convert(
+            compressed_images,
+            title="Converted by PDFConverter",
+            author="Telegram Bot",
+            creator="PDFConverter Bot",
+        )
+
+        with open(output_file_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        if output_file_path.exists():
+            pdf_size = output_file_path.stat().st_size / 1024
+            logger.info(f"PDF создан успешно! Размер: {pdf_size:.1f}KB")
+            return str(output_file_path)
+        
+        return None
+
+    except img2pdf.AlphaChannelError as e:
+        logger.error(f"Ошибка альфа-канала: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при создании PDF: {e}", exc_info=True)
+        return None
+
+
+async def convert_images_to_pdf(
+    input_directory: str | Path,
+    output_directory: str | Path,
+    message_id: int,
+    quality: int = 75,
+    max_width: Optional[int] = 1200,
+    max_height: Optional[int] = 1800,
+) -> Optional[str]:
+    """
+    Асинхронный интерфейс для конвертации изображений в PDF.
+    Безопасно запускает блокирующую сборку в отдельном потоке execution pool.
+    """
+    return await asyncio.to_thread(
+        _sync_image_converter_to_pdf,
+        input_directory=input_directory,
+        output_directory=output_directory,
+        message_id=message_id,
+        quality=quality,
+        max_width=max_width,
+        max_height=max_height,
+    )
