@@ -11,6 +11,7 @@ from handlers.clear import router as clear_router
 from handlers.pdf_working import router as pdf_router
 from handlers.repeater import router as repeater_router
 from handlers.start import router as start_router
+from handlers.help import router as help_router
 from middlewares.db import DbSessionMiddleware
 from utils.commands import set_common_commands
 
@@ -43,6 +44,7 @@ async def main() -> None:
     dp.include_router(start_router)
     dp.include_router(pdf_router)
     dp.include_router(clear_router)
+    dp.include_router(help_router)
     dp.include_router(repeater_router)
     logger.info("Роутеры загружены")
 

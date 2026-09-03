@@ -6,8 +6,10 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.user import crud_user
+from core.logger import setup_logger
 from utils.keyboard import main_keyboard
-from utils.temp_buffer import create_temp_folder
+
+logger = setup_logger(name=__name__)
 
 router = Router()
 
@@ -19,6 +21,8 @@ async def command_start_handler(
     """
     This handler receives messages with `/start` command
     """
+
+    logger.info(f"Пользователь {message.from_user.id} вызвал команду /start")
 
     # Автоматически создаст нового юзера или обновит username/first_name существующего
     user = await crud_user.create_or_update(

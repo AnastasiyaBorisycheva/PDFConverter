@@ -9,7 +9,7 @@ logger = setup_logger(__name__)
 commands = [
     BotCommand(
         command="start",
-        description="Зарегистрируйся в боте"
+        description="Зарегистрироваться в боте"
     ),
     BotCommand(
         command="convert",
@@ -18,7 +18,11 @@ commands = [
     BotCommand(
         command="clear",
         description="Удалить все временные файлы"
-    )
+    ),
+    BotCommand(
+        command="help",
+        description="Справка, контакты, ссылка на GitHub"
+    ),
 ]
 
 
