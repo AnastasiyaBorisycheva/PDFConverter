@@ -18,6 +18,9 @@ from crud.user import crud_user
 from utils.image_converter import convert_images_to_pdf
 from utils.temp_buffer import get_user_temp_paths, remove_user_temp_dir
 
+# Допустимые расширения файлов изображений
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".heic"}
+
 logger = setup_logger(name=__name__)
 
 router = Router()
@@ -25,31 +28,51 @@ router = Router()
 
 @router.message(F.document | F.photo)
 async def media_handler(message: Message, bot: Bot) -> None:
-    """Сохранение файлов во временную папку по ID пользователя."""
+    """Сохранение валидных изображений во временную папку по ID пользователя."""
     user_id = message.from_user.id
-    logger.info(f"Получен файл от пользователя {user_id}")
+    logger.info(f"Получен медиафайл от пользователя {user_id}")
 
     path_in, _ = get_user_temp_paths(user_id)
-
-    msg = await message.answer("Увидел файлы, сохраняю...")
-
+    document = None
     document_name = None
-    try:
-        if message.document is not None:
-            document = message.document
-            document_name = message.document.file_name or f"doc_{message.message_id}.jpg"
-            logger.info(f"Документ: {document_name}, размер: {document.file_size} bytes")
-        elif message.photo is not None:
-            document = message.photo[-1]
-            document_name = f"{document.file_unique_id}.jpg"
-            logger.info(f"Фото: {document_name}, размер: {document.file_size} bytes")
 
+    # 1. Валидация и извлечение данных
+    if message.photo:
+        document = message.photo[-1]
+        document_name = f"{document.file_unique_id}.jpg"
+    elif message.document:
+        doc = message.document
+        doc_name = doc.file_name or f"doc_{message.message_id}.jpg"
+        ext = Path(doc_name).suffix.lower()
+        mime_type = doc.mime_type or ""
+
+        # Проверяем расширение файла и MIME-тип
+        if ext not in ALLOWED_EXTENSIONS and not mime_type.startswith("image/"):
+            logger.warning(
+                f"Пользователь {user_id} отправил неподдерживаемый файл: {doc_name} ({mime_type})"
+            )
+            await message.reply(
+                f"Файл <b>{html.quote(doc_name)}</b> не является поддерживаемым изображением.\n\n"
+                f"Пожалуйста, отправляйте только картинки форматов: <code>JPG, PNG, WEBP, BMP, TIFF</code>."
+            )
+            return
+
+        document = doc
+        document_name = doc_name or f"doc_{message.message_id}.jpg"
+
+    if not document:
+        return
+
+    # 2. Сохранение файла
+    msg = await message.answer("Увидел картинку, сохраняю...")
+
+    try:
         filename = f"{message.message_id}_{document_name}"
         filepath = path_in / filename
 
         logger.debug(f"Скачивание файла в {filepath}")
         await bot.download(document.file_id, destination=filepath)
-        logger.info(f"Файл сохранён: {html.code(document_name)}")
+        logger.info(f"Файл успешно сохранён: {html.code(document_name)}")
 
         await msg.edit_text("Файл сохранён")
         await asyncio.sleep(1)
@@ -57,9 +80,8 @@ async def media_handler(message: Message, bot: Bot) -> None:
 
     except Exception as e:
         logger.error(f"Ошибка при сохранении файла: {e}", exc_info=True)
-    finally:
-        if document_name:
-            logger.info(f"Файл {html.code(document_name)} готов к конвертации")
+        await msg.edit_text("Произошла ошибка при сохранении файла.")
+
 
 
 async def send_file_with_retry(

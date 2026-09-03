@@ -1,35 +1,35 @@
 name: PDF Converter Workflow
+
 on:
   push:
     branches:
       - main
 
-# Перечень задач
 jobs:
   # Шаг 1: Сборка и отправка образа на Docker Hub
   build_and_push_to_docker_hub:
     runs-on: ubuntu-latest
     steps:
-
       - name: Check out the repo
-        # Получение исходного кода из репозитория
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker 
-        # Авторизация на Docker Hub
         uses: docker/login-action@v3
-        # При помощи with передаём в action параметры username и password
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Push to DockerHub
-        # Одновременный билд и пуш образа в Docker Hub
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: anastasiiaborisycheva/pdfconverter:latest 
+          tags: anastasiiaborisycheva/pdfconverter:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Шаг 2: Деплой на VPS (запустится ТОЛЬКО после успешной сборки)
   deploy:
@@ -46,32 +46,51 @@ jobs:
             cd /home/${{ secrets.SSH_USER }}/pdf_converter/
             
             # Pull latest images
-            docker compose -f docker-compose.yml pull
+            docker compose pull
             
             # Redeploy containers
-            docker compose -f docker-compose.yml up -d --force-recreate
+            docker compose up -d --force-recreate
             
-            # Cleanup old images
+            # Cleanup old unused images
             docker image prune -f
             
             # Check status
-            docker compose -f docker-compose.yml ps
+            docker compose ps
             
             echo "Deployment completed successfully!"
 
-  # Шаг 3: Уведомление в Telegram
-  notify-success:
+  # Шаг 3: Уведомления в Telegram
+  notify:
     runs-on: ubuntu-latest
     needs:
-      - deploy
       - build_and_push_to_docker_hub
-
-    if: success()
+      - deploy
+    if: always() # Выполняется всегда (и при успехе, и при ошибке)
     steps:
-    - name: Send Telegram notification
-      uses: appleboy/telegram-action@master
-      with:
-        to: ${{ secrets.TELEGRAM_CHAT_ID }}
-        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: |
-          PDF Converter successfully deployed to production!
+      - name: Send Telegram notification on SUCCESS
+        if: needs.deploy.result == 'success'
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            <b>PDF Converter</b> успешно обновлён и запущен на продакшене!
+            
+            <b>Репозиторий:</b> ${{ github.repository }}
+            <b>Коммит:</b> ${{ github.sha }}
+            <b>Автор:</b> ${{ github.actor }}
+          format: html
+
+      - name: Send Telegram notification on FAILURE
+        if: needs.build_and_push_to_docker_hub.result == 'failure' || needs.deploy.result == 'failure'
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            <b>Ошибка при деплое PDF Converter!</b>
+            
+            <b>Коммит:</b> ${{ github.sha }}
+            <b>Автор:</b> ${{ github.actor }}
+            Проверьте логи в GitHub Actions.
+          format: html
